@@ -1,9 +1,11 @@
 import pandas as pd
 import plotly.express as px
-from dash import Dash, dcc, html, Input, Output
+from dash import Dash, dcc, html, Input, Output, callback_context, State
 import sys
 import requests
 import os
+from datetime import datetime
+import time
 
 def debug_print(message):
     print(f"DEBUG: {message}", file=sys.stderr)
@@ -11,45 +13,56 @@ def debug_print(message):
 
 debug_print("Iniciando aplicación...")
 
+# URL de la hoja de Google Sheets
 sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRvUazuzfWjGl5VWuZJUJslZEf-PpYyHZ_5G2SXwPtu16R71mPSKVQTYjen9UBwQ/pub?gid=865145678&single=true&output=csv"
 
-try:
-    response = requests.get(sheet_url, timeout=15)
-    response.raise_for_status()
-    df = pd.read_csv(sheet_url)
-    df.columns = df.columns.str.strip()
-    df['RN'] = df['RN'].astype(str).str.replace(r'[\xa0\s]+', ' ', regex=True).str.strip()
+# Función para cargar los datos desde Google Sheets
+def cargar_datos():
+    debug_print(f"Cargando datos a las {datetime.now().strftime('%H:%M:%S')}")
+    try:
+        response = requests.get(sheet_url, timeout=15)
+        response.raise_for_status()
+        df = pd.read_csv(sheet_url)
+        df.columns = df.columns.str.strip()
+        df['RN'] = df['RN'].astype(str).str.replace(r'[\xa0\s]+', ' ', regex=True).str.strip()
 
-    for col in ['Inicio', 'Fin']:
-        df[col] = pd.to_datetime(df[col], format='%m/%d/%Y', errors='coerce')
-    df = df.dropna(subset=['Inicio', 'Fin'])
+        for col in ['Inicio', 'Fin']:
+            df[col] = pd.to_datetime(df[col], format='%m/%d/%Y', errors='coerce')
+        df = df.dropna(subset=['Inicio', 'Fin'])
 
-    if df.empty:
+        if df.empty:
+            sample_dates = pd.date_range(start='2023-01-01', periods=3)
+            df = pd.DataFrame({
+                'RN': ['Ejemplo 1', 'Ejemplo 2', 'Ejemplo 3'],
+                'Estado': ['En desarrollo', 'Entregado', 'Backlog'],
+                'Inicio': sample_dates,
+                'Fin': sample_dates + pd.Timedelta(days=30)
+            })
+
+        df['Inicio_str'] = df['Inicio'].dt.strftime('%Y-%m-%d')
+        df['Fin_str'] = df['Fin'].dt.strftime('%Y-%m-%d')
+        df['Duracion'] = (df['Fin'] - df['Inicio']).dt.days
+        df['Mes'] = df['Fin'].dt.to_period('M').astype(str)
+        
+        return df, True
+
+    except Exception as e:
+        debug_print(f"Error al cargar datos: {str(e)}")
         sample_dates = pd.date_range(start='2023-01-01', periods=3)
         df = pd.DataFrame({
-            'RN': ['Ejemplo 1', 'Ejemplo 2', 'Ejemplo 3'],
-            'Estado': ['En desarrollo', 'Entregado', 'Backlog'],
+            'RN': ['Error - Sin datos', 'Ejemplo 2', 'Ejemplo 3'],
+            'Estado': ['Error', 'Error', 'Error'],
             'Inicio': sample_dates,
-            'Fin': sample_dates + pd.Timedelta(days=30)
+            'Fin': sample_dates + pd.Timedelta(days=30),
+            'Inicio_str': sample_dates.strftime('%Y-%m-%d'),
+            'Fin_str': (sample_dates + pd.Timedelta(days=30)).strftime('%Y-%m-%d'),
+            'Duracion': [30, 30, 30],
+            'Mes': sample_dates.strftime('%Y-%m')
         })
+        return df, False
 
-    df['Inicio_str'] = df['Inicio'].dt.strftime('%Y-%m-%d')
-    df['Fin_str'] = df['Fin'].dt.strftime('%Y-%m-%d')
-    df['Duracion'] = (df['Fin'] - df['Inicio']).dt.days
-    df['Mes'] = df['Fin'].dt.to_period('M').astype(str)
-
-except Exception as e:
-    sample_dates = pd.date_range(start='2023-01-01', periods=3)
-    df = pd.DataFrame({
-        'RN': ['Error - Sin datos', 'Ejemplo 2', 'Ejemplo 3'],
-        'Estado': ['Error', 'Error', 'Error'],
-        'Inicio': sample_dates,
-        'Fin': sample_dates + pd.Timedelta(days=30),
-        'Inicio_str': sample_dates.strftime('%Y-%m-%d'),
-        'Fin_str': (sample_dates + pd.Timedelta(days=30)).strftime('%Y-%m-%d'),
-        'Duracion': [30, 30, 30],
-        'Mes': sample_dates.strftime('%Y-%m')
-    })
+# Carga inicial de datos
+df, carga_exitosa = cargar_datos()
 
 color_estado = {
     'Entregado': '#2ecc71',
@@ -78,7 +91,7 @@ app.layout = html.Div([
                 value='Todos',
                 clearable=False
             )
-        ], style={'width': '48%', 'display': 'inline-block'}),
+        ], style={'width': '32%', 'display': 'inline-block'}),
         html.Div([
             html.Label("Estado:"),
             dcc.Dropdown(
@@ -88,7 +101,15 @@ app.layout = html.Div([
                 value='Todos',
                 clearable=False
             )
-        ], style={'width': '48%', 'display': 'inline-block', 'marginLeft': '10px'}),
+        ], style={'width': '32%', 'display': 'inline-block', 'marginLeft': '10px'}),
+        html.Div([
+            html.Button('Actualizar datos', id='refresh-button', 
+                       style={'marginTop': '20px', 'padding': '8px 16px', 'backgroundColor': '#3498db', 
+                              'color': 'white', 'border': 'none', 'borderRadius': '4px', 'cursor': 'pointer'}),
+            html.Div(id='last-update-time', 
+                    children=f"Última actualización: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    style={'marginTop': '5px', 'fontSize': '12px'})
+        ], style={'width': '32%', 'display': 'inline-block', 'marginLeft': '10px', 'textAlign': 'center'})
     ], style={'marginBottom': '20px'}),
     html.Div([
         html.Label("Tema:"),
@@ -102,6 +123,14 @@ app.layout = html.Div([
             labelStyle={'display': 'inline-block', 'marginRight': '15px'}
         ),
     ], style={'marginBottom': '20px'}),
+    # Añadir un intervalo para actualizaciones automáticas (cada 60 segundos)
+    dcc.Interval(
+        id='interval-component',
+        interval=60*1000,  # en milisegundos (60 segundos)
+        n_intervals=0
+    ),
+    # Almacenar los datos en componente oculto
+    dcc.Store(id='stored-data'),
     html.Div([
         dcc.Graph(
             id='gantt-graph',
@@ -111,14 +140,57 @@ app.layout = html.Div([
     ], style={'height': '80vh', 'overflowY': 'auto', 'width': '100%'})
 ])
 
+# Callback para actualizar los datos cuando se hace clic en el botón o por el intervalo
+@app.callback(
+    [Output('stored-data', 'data'),
+     Output('mes-dropdown', 'options'),
+     Output('estado-dropdown', 'options'),
+     Output('last-update-time', 'children')],
+    [Input('refresh-button', 'n_clicks'),
+     Input('interval-component', 'n_intervals')],
+    [State('mes-dropdown', 'value'),
+     State('estado-dropdown', 'value')]
+)
+def actualizar_datos(n_clicks, n_intervals, mes_actual, estado_actual):
+    # Cargar datos actualizados
+    df_actualizado, _ = cargar_datos()
+    
+    # Actualizar opciones de los dropdowns
+    opciones_mes = [{'label': 'Todos', 'value': 'Todos'}] + [
+        {'label': mes, 'value': mes} for mes in sorted(df_actualizado['Mes'].unique())
+    ]
+    
+    opciones_estado = [{'label': 'Todos', 'value': 'Todos'}] + [
+        {'label': estado, 'value': estado} for estado in sorted(df_actualizado['Estado'].unique())
+    ]
+    
+    # Actualizar tiempo de la última actualización
+    tiempo_actualizacion = f"Última actualización: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    
+    # Convertir DataFrame a diccionario para almacenarlo
+    return df_actualizado.to_dict('records'), opciones_mes, opciones_estado, tiempo_actualizacion
+
+# Callback para actualizar el gráfico basado en los filtros y datos almacenados
 @app.callback(
     Output('gantt-graph', 'figure'),
-    [Input('mes-dropdown', 'value'),
+    [Input('stored-data', 'data'),
+     Input('mes-dropdown', 'value'),
      Input('estado-dropdown', 'value'),
      Input('theme-switch', 'value')]
 )
-def actualizar_grafico(mes, estado, theme):
-    df_filtrado = df.copy()
+def actualizar_grafico(data, mes, estado, theme):
+    # Convertir datos almacenados de nuevo a DataFrame
+    if not data:
+        # Usar datos iniciales si aún no hay datos almacenados
+        df_filtrado = df.copy()
+    else:
+        df_filtrado = pd.DataFrame(data)
+        # Convertir columnas de fecha de nuevo a datetime
+        for col in ['Inicio', 'Fin']:
+            if col in df_filtrado.columns:
+                df_filtrado[col] = pd.to_datetime(df_filtrado[col])
+    
+    # Aplicar filtros
     if mes != 'Todos':
         df_filtrado = df_filtrado[df_filtrado['Mes'] == mes]
     if estado != 'Todos':
@@ -127,6 +199,7 @@ def actualizar_grafico(mes, estado, theme):
     if df_filtrado.empty:
         return px.scatter(title="Sin datos con los filtros seleccionados")
 
+    # Configurar tema
     if theme == 'dark':
         plot_bgcolor = '#23272f'
         paper_bgcolor = '#23272f'
@@ -138,8 +211,9 @@ def actualizar_grafico(mes, estado, theme):
         font_color = '#222'
         gridcolor = '#eee'
 
+    # Ordenar datos y crear el gráfico
     df_filtrado = df_filtrado.sort_values('Inicio', ascending=True)
-    df_filtrado['RN'] = pd.Categorical(df_filtrado['RN'], categories=df_filtrado['RN'], ordered=True)
+    df_filtrado['RN'] = pd.Categorical(df_filtrado['RN'], categories=df_filtrado['RN'].unique(), ordered=True)
 
     fig = px.timeline(
         df_filtrado,
@@ -157,7 +231,8 @@ def actualizar_grafico(mes, estado, theme):
         hovertemplate=(
             "<b>%{customdata[0]}</b><br>"
             "Inicio de desarrollo: %{customdata[1]}<br>"
-            "Fin de desarrollo OK QA: %{customdata[2]}"
+            "Fin de desarrollo OK QA: %{customdata[2]}<br>"
+            "Duración: %{customdata[3]} días"
         ),
         text="",
         marker=dict(line=dict(width=0.3, color='DarkSlateGrey'))
@@ -215,7 +290,7 @@ def actualizar_grafico(mes, estado, theme):
                 ax=0,
                 ay=-40,
                 font=dict(color='red', size=12),
-                bgcolor='white',
+                bgcolor='white' if theme == 'light' else '#23272f',
                 bordercolor='red',
                 borderwidth=1,
                 opacity=0.9
