@@ -1,6 +1,6 @@
 import pandas as pd
 import plotly.express as px
-from dash import Dash, dcc, html, Input, Output, callback_context, State
+from dash import Dash, dcc, html, Input, Output, State
 import sys
 import requests
 import os
@@ -11,12 +11,10 @@ def debug_print(message):
     print(f"DEBUG: {message}", file=sys.stderr)
     sys.stderr.flush()
 
-debug_print("Iniciando aplicación...")
+debug_print("Iniciando aplicaci\u00f3n...")
 
-# URL de la hoja de Google Sheets
 sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRvUazuzfWjGl5VWuZJUJslZEf-PpYyHZ_5G2SXwPtu16R71mPSKVQTYjen9UBwQ/pub?gid=865145678&single=true&output=csv"
 
-# Función para cargar los datos desde Google Sheets
 def cargar_datos():
     debug_print(f"Cargando datos a las {datetime.now().strftime('%H:%M:%S')}")
     try:
@@ -43,7 +41,7 @@ def cargar_datos():
         df['Fin_str'] = df['Fin'].dt.strftime('%Y-%m-%d')
         df['Duracion'] = (df['Fin'] - df['Inicio']).dt.days
         df['Mes'] = df['Fin'].dt.to_period('M').astype(str)
-        
+
         return df, True
 
     except Exception as e:
@@ -61,7 +59,6 @@ def cargar_datos():
         })
         return df, False
 
-# Carga inicial de datos
 df, carga_exitosa = cargar_datos()
 
 color_estado = {
@@ -71,7 +68,7 @@ color_estado = {
     'Para refinar': '#f5d76e',
     'Escribiendo': '#e67e22',
     'Para escribir': '#e74c3c',
-    'En Análisis': '#9b59b6',
+    'En An\u00e1lisis': '#9b59b6',
     'Cancelado': '#95a5a6',
     'Error': '#e74c3c'
 }
@@ -103,11 +100,11 @@ app.layout = html.Div([
             )
         ], style={'width': '32%', 'display': 'inline-block', 'marginLeft': '10px'}),
         html.Div([
-            html.Button('Actualizar datos', id='refresh-button', 
-                       style={'marginTop': '20px', 'padding': '8px 16px', 'backgroundColor': '#3498db', 
-                              'color': 'white', 'border': 'none', 'borderRadius': '4px', 'cursor': 'pointer'}),
-            html.Div(id='last-update-time', 
-                    children=f"Última actualización: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            html.Button('Actualizar datos', id='refresh-button',
+                        style={'marginTop': '20px', 'padding': '8px 16px', 'backgroundColor': '#3498db',
+                               'color': 'white', 'border': 'none', 'borderRadius': '4px', 'cursor': 'pointer'}),
+            html.Div(id='last-update-time',
+                     children=f"\u00daltima actualizaci\u00f3n: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
                     style={'marginTop': '5px', 'fontSize': '12px'})
         ], style={'width': '32%', 'display': 'inline-block', 'marginLeft': '10px', 'textAlign': 'center'})
     ], style={'marginBottom': '20px'}),
@@ -123,24 +120,13 @@ app.layout = html.Div([
             labelStyle={'display': 'inline-block', 'marginRight': '15px'}
         ),
     ], style={'marginBottom': '20px'}),
-    # Añadir un intervalo para actualizaciones automáticas (cada 60 segundos)
-    dcc.Interval(
-        id='interval-component',
-        interval=60*1000,  # en milisegundos (60 segundos)
-        n_intervals=0
-    ),
-    # Almacenar los datos en componente oculto
+    dcc.Interval(id='interval-component', interval=60*1000, n_intervals=0),
     dcc.Store(id='stored-data'),
     html.Div([
-        dcc.Graph(
-            id='gantt-graph',
-            responsive=True,
-            style={'height': '100%', 'width': '100%'}
-        )
+        dcc.Graph(id='gantt-graph', responsive=True, style={'height': '100%', 'width': '100%'})
     ], style={'height': '80vh', 'overflowY': 'auto', 'width': '100%'})
 ])
 
-# Callback para actualizar los datos cuando se hace clic en el botón o por el intervalo
 @app.callback(
     [Output('stored-data', 'data'),
      Output('mes-dropdown', 'options'),
@@ -152,25 +138,16 @@ app.layout = html.Div([
      State('estado-dropdown', 'value')]
 )
 def actualizar_datos(n_clicks, n_intervals, mes_actual, estado_actual):
-    # Cargar datos actualizados
     df_actualizado, _ = cargar_datos()
-    
-    # Actualizar opciones de los dropdowns
     opciones_mes = [{'label': 'Todos', 'value': 'Todos'}] + [
         {'label': mes, 'value': mes} for mes in sorted(df_actualizado['Mes'].unique())
     ]
-    
     opciones_estado = [{'label': 'Todos', 'value': 'Todos'}] + [
         {'label': estado, 'value': estado} for estado in sorted(df_actualizado['Estado'].unique())
     ]
-    
-    # Actualizar tiempo de la última actualización
-    tiempo_actualizacion = f"Última actualización: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-    
-    # Convertir DataFrame a diccionario para almacenarlo
+    tiempo_actualizacion = f"\u00daltima actualizaci\u00f3n: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     return df_actualizado.to_dict('records'), opciones_mes, opciones_estado, tiempo_actualizacion
 
-# Callback para actualizar el gráfico basado en los filtros y datos almacenados
 @app.callback(
     Output('gantt-graph', 'figure'),
     [Input('stored-data', 'data'),
@@ -179,18 +156,14 @@ def actualizar_datos(n_clicks, n_intervals, mes_actual, estado_actual):
      Input('theme-switch', 'value')]
 )
 def actualizar_grafico(data, mes, estado, theme):
-    # Convertir datos almacenados de nuevo a DataFrame
     if not data:
-        # Usar datos iniciales si aún no hay datos almacenados
         df_filtrado = df.copy()
     else:
         df_filtrado = pd.DataFrame(data)
-        # Convertir columnas de fecha de nuevo a datetime
         for col in ['Inicio', 'Fin']:
             if col in df_filtrado.columns:
                 df_filtrado[col] = pd.to_datetime(df_filtrado[col])
-    
-    # Aplicar filtros
+
     if mes != 'Todos':
         df_filtrado = df_filtrado[df_filtrado['Mes'] == mes]
     if estado != 'Todos':
@@ -199,7 +172,6 @@ def actualizar_grafico(data, mes, estado, theme):
     if df_filtrado.empty:
         return px.scatter(title="Sin datos con los filtros seleccionados")
 
-    # Configurar tema
     if theme == 'dark':
         plot_bgcolor = '#23272f'
         paper_bgcolor = '#23272f'
@@ -211,9 +183,11 @@ def actualizar_grafico(data, mes, estado, theme):
         font_color = '#222'
         gridcolor = '#eee'
 
-    # Ordenar datos y crear el gráfico
     df_filtrado = df_filtrado.sort_values('Inicio', ascending=True)
     df_filtrado['RN'] = pd.Categorical(df_filtrado['RN'], categories=df_filtrado['RN'].unique(), ordered=True)
+
+    today = pd.Timestamp.now().normalize()
+    df_filtrado['Dias_restantes'] = (df_filtrado['Fin'] - today).dt.days.clip(lower=0)
 
     fig = px.timeline(
         df_filtrado,
@@ -222,7 +196,7 @@ def actualizar_grafico(data, mes, estado, theme):
         y="RN",
         color="Estado",
         color_discrete_map=color_estado,
-        custom_data=["RN", "Inicio_str", "Fin_str", "Duracion"],
+        custom_data=["RN", "Inicio_str", "Fin_str", "Duracion", "Dias_restantes"],
         labels={'Estado': 'Estado', 'RN': 'Requerimiento'},
         title=f"Postventa - {estado if estado != 'Todos' else 'Todos los estados'} | {mes if mes != 'Todos' else 'Todos los meses'}"
     )
@@ -232,7 +206,8 @@ def actualizar_grafico(data, mes, estado, theme):
             "<b>%{customdata[0]}</b><br>"
             "Inicio de desarrollo: %{customdata[1]}<br>"
             "Fin de desarrollo OK QA: %{customdata[2]}<br>"
-            "Duración: %{customdata[3]} días"
+            "Duraci\u00f3n: %{customdata[3]} d\u00edas<br>"
+            "D\u00edas restantes: %{customdata[4]} d\u00edas"
         ),
         text="",
         marker=dict(line=dict(width=0.3, color='DarkSlateGrey'))
@@ -245,20 +220,11 @@ def actualizar_grafico(data, mes, estado, theme):
     dynamic_height = row_height * rows_count
     graph_height = max(min_height, min(dynamic_height, max_height))
 
-    today = pd.Timestamp.now().normalize()
-
     fig.update_layout(
         height=graph_height,
         xaxis=dict(title="Fecha", tickformat="%Y-%m-%d", gridcolor=gridcolor),
-        yaxis=dict(autorange="reversed"),  # ← Clave para invertir el eje Y
-        legend=dict(
-            title="Estado",
-            orientation="v",
-            yanchor="top",
-            y=1,
-            xanchor="left",
-            x=1.01
-        ),
+        yaxis=dict(autorange="reversed"),
+        legend=dict(title="Estado", orientation="v", yanchor="top", y=1, xanchor="left", x=1.01),
         plot_bgcolor=plot_bgcolor,
         paper_bgcolor=paper_bgcolor,
         font=dict(color=font_color),
@@ -266,34 +232,18 @@ def actualizar_grafico(data, mes, estado, theme):
         bargap=0.15,
         shapes=[
             dict(
-                type='line',
-                x0=today,
-                y0=0,
-                x1=today,
-                y1=rows_count,
-                line=dict(
-                    color='red',
-                    width=2,
-                    dash='dash'
-                )
+                type='line', x0=today, y0=0, x1=today, y1=rows_count,
+                line=dict(color='red', width=2, dash='dash')
             )
         ],
         annotations=[
             dict(
-                x=today,
-                y=0.5,
-                xref='x',
-                yref='y',
+                x=today, y=0.5, xref='x', yref='y',
                 text=f'Hoy: {today.strftime("%Y-%m-%d")}',
-                showarrow=True,
-                arrowhead=7,
-                ax=0,
-                ay=-40,
+                showarrow=True, arrowhead=7, ax=0, ay=-40,
                 font=dict(color='red', size=12),
                 bgcolor='white' if theme == 'light' else '#23272f',
-                bordercolor='red',
-                borderwidth=1,
-                opacity=0.9
+                bordercolor='red', borderwidth=1, opacity=0.9
             )
         ]
     )
@@ -304,6 +254,7 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     debug_print("Iniciando servidor...")
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 
 
