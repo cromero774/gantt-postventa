@@ -77,7 +77,7 @@ app = Dash(__name__)
 server = app.server
 
 app.layout = html.Div([
-    html.H1("Gantt Postventa", style={'textAlign': 'center', 'margin': '20px 0'}),
+    html.H1("Gantt Desarrollo Postventa", style={'textAlign': 'center', 'margin': '20px 0'}),
     html.Div([
         html.Div([
             html.Label("Mes de entrega:"),
